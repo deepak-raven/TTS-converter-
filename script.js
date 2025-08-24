@@ -1,108 +1,82 @@
-const voiceSelect = document.getElementById("voiceSelect");
-const convertBtn = document.getElementById("convert");
-const audioElement = document.getElementById("audio");
-const downloadLink = document.getElementById("download");
-const textArea = document.getElementById("text");
+document.addEventListener("DOMContentLoaded", () => {
+  // Get references to the HTML elements
+  const text = document.querySelector("#text");
+  const voiceSelect = document.querySelector("#voiceSelect");
+  const convertBtn = document.querySelector("#convert");
+  const audio = document.querySelector("#audio");
 
-// Load voices into dropdown
-async function loadVoices() {
-  try {
-    const response = await fetch("/api/voices");
-    const data = await response.json();
+  // Function to populate the voice select dropdown by calling our secure API endpoint
+  const getVoices = async () => {
+    try {
+      // Call our own serverless function to get the voices
+      const response = await fetch("/api/get-voices");
 
-    console.log("Voices response:", data);
+      if (!response.ok) {
+        throw new Error("Failed to fetch voices from the server.");
+      }
 
-    // Adjust based on API response shape
-    const voices = data.voices || data;
+      const data = await response.json();
 
-    voiceSelect.innerHTML = "";
-    voices.forEach((voice) => {
-      const option = document.createElement("option");
-      option.value = voice.voice_id;
-      option.textContent = voice.name;
-      voiceSelect.appendChild(option);
-    });
-  } catch (err) {
-    alert("Error fetching voices: " + err.message);
-  }
-}
+      voiceSelect.innerHTML = ''; // Clear existing options
+      data.voices.forEach(voice => {
+        const option = document.createElement("option");
+        option.value = voice.voice_id;
+        option.textContent = `${voice.name} (${voice.labels.accent || 'N/A'})`;
+        voiceSelect.appendChild(option);
+      });
+    } catch (error) {
+      console.error("Error fetching voices:", error);
+      alert("Could not load voices. Please check the server and try again.");
+    }
+  };
 
-// Handle text-to-speech conversion
-convertBtn.addEventListener("click", async () => {
-  const text = textArea.value.trim();
-  const voiceId = voiceSelect.value;
+  // Event listener for the "Play" button
+  convertBtn.addEventListener("click", async () => {
+    const selectedVoiceId = voiceSelect.value;
+    const textToConvert = text.value.trim();
 
-  if (!text) {
-    alert("Please enter some text.");
-    return;
-  }
-
-  convertBtn.disabled = true;
-  convertBtn.textContent = "Converting...";
-
-  try {
-    const response = await fetch("/api/voices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, voiceId }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Conversion failed");
+    if (!selectedVoiceId || !textToConvert) {
+      alert("Please select a voice and enter some text.");
+      return;
     }
 
-    const audioData = await response.arrayBuffer();
-    const blob = new Blob([audioData], { type: "audio/mpeg" });
-    const url = URL.createObjectURL(blob);
+    // Disable button and show loading state
+    convertBtn.disabled = true;
+    convertBtn.textContent = "Loading...";
 
-    // Play audio
-    audioElement.src = url;
-    audioElement.play();
+    try {
+      // Call our own serverless function for TTS conversion
+      const response = await fetch(`/api/voices`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: textToConvert,
+          voiceId: selectedVoiceId,
+        }),
+      });
 
-    // Prepare download link
-    downloadLink.href = url;
-    downloadLink.download = "speech.mp3";
-    downloadLink.style.display = "inline";
-    downloadLink.textContent = "Download MP3";
-  } catch (err) {
-    alert("Error converting text to speech: " + err.message);
-  } finally {
-    convertBtn.disabled = false;
-    convertBtn.textContent = "Play";
-  }
-});
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status} ${response.statusText}`);
+      }
 
-// Load voices on page load
-loadVoices();  convertBtn.textContent = "Converting...";
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
 
-  try {
-    const response = await fetch("/api/voices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, voiceId })
-    });
+      audio.src = audioUrl;
+      audio.play();
 
-    if (!response.ok) {
-      throw new Error("API request failed");
+    } catch (error) {
+      console.error("Error converting text to speech:", error);
+      alert("Failed to convert text to speech. Please try again.");
+    } finally {
+      // Re-enable button and restore original text
+      convertBtn.disabled = false;
+      convertBtn.textContent = "Play";
     }
+  });
 
-    const audioData = await response.arrayBuffer();
-    const blob = new Blob([audioData], { type: "audio/mpeg" });
-    audioElement.src = URL.createObjectURL(blob);
-    audioElement.play();
-  } catch (error) {
-    alert("Error converting text to speech: " + error.message);
-  } finally {
-    convertBtn.disabled = false;
-    convertBtn.textContent = "Play";
-  }
-});
-
-// Load voices when page loads
-window.addEventListener("DOMContentLoaded", loadVoices);    alert("Error converting text to speech: " + error.message);
-  } finally {
-    convertBtn.disabled = false;
-    convertBtn.textContent = "Play";
-  }
+  // Load the voices when the page loads
+  getVoices();
 });
