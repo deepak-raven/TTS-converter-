@@ -1,9 +1,18 @@
+const voiceSelect = document.getElementById("voiceSelect");
+const convertBtn = document.getElementById("convert");
+const audioElement = document.getElementById("audio");
+const textInput = document.getElementById("text");
+
 async function loadVoices() {
   try {
     const response = await fetch("/api/voices");
     const data = await response.json();
-    const voices = data.voices;
+    console.log("Voices JSON:", data);
 
+    // Depending on the shape: { voices: [...] }
+    const voices = data.voices || data;
+
+    voiceSelect.innerHTML = ""; // clear old options
     voices.forEach(voice => {
       const option = document.createElement("option");
       option.value = voice.voice_id;
@@ -16,8 +25,13 @@ async function loadVoices() {
 }
 
 convertBtn.addEventListener("click", async () => {
-  const text = document.getElementById("text").value;
+  const text = textInput.value.trim();
   const voiceId = voiceSelect.value;
+
+  if (!text) {
+    alert("Please enter some text");
+    return;
+  }
 
   convertBtn.disabled = true;
   convertBtn.textContent = "Converting...";
@@ -29,12 +43,24 @@ convertBtn.addEventListener("click", async () => {
       body: JSON.stringify({ text, voiceId })
     });
 
+    if (!response.ok) {
+      throw new Error("API request failed");
+    }
+
     const audioData = await response.arrayBuffer();
     const blob = new Blob([audioData], { type: "audio/mpeg" });
     audioElement.src = URL.createObjectURL(blob);
     audioElement.play();
   } catch (error) {
     alert("Error converting text to speech: " + error.message);
+  } finally {
+    convertBtn.disabled = false;
+    convertBtn.textContent = "Play";
+  }
+});
+
+// Load voices when page loads
+window.addEventListener("DOMContentLoaded", loadVoices);    alert("Error converting text to speech: " + error.message);
   } finally {
     convertBtn.disabled = false;
     convertBtn.textContent = "Play";
